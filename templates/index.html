@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="서울 자치구 생활인구 이상탐지 팀프로젝트 Mock 대시보드">
+  <title>서울 생활인구 | 이상탐지 대시보드</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../static/css/dashboard.css">
+  <script defer src="../static/vendor/chart.umd.min.js"></script>
+  <script type="module" src="../static/js/dashboard.js"></script>
+</head>
+<body>
+  <a class="skip" href="#query-form">조회 설정으로 이동</a>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">▥</span><div>SEOUL <span class="brand-light">POPULATION LAB</span><small>객체지향프로그래밍 팀 프로젝트</small></div></div>
+    <div class="header-note"><span class="live-dot"></span> 생활인구 분석 <span class="header-divider">/</span> <span id="source-label">MOCK DEMO</span></div>
+  </header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">POPULATION ANOMALY MONITOR</p><h1>서울 생활인구 이상탐지</h1><p class="subtitle">자치구의 일별 변화를 살펴보고, 평소 패턴을 벗어난 날짜를 확인하세요.</p></div><span class="outline-tag">25개 자치구 · 3가지 탐지 방법</span></div>
+    <aside class="demo-banner" id="demo-banner"><strong>합성 데이터 시연</strong><span>실제 서울 생활인구가 아닙니다. 기존 Python 탐지기로 생성한 Mock 결과이며, 실제 API는 연결되지 않았습니다.</span></aside>
+
+    <section class="panel query-panel" aria-labelledby="query-heading">
+      <div class="section-heading"><h2 id="query-heading"><span class="section-number">01</span> 조회 설정</h2><span class="muted">조건을 변경한 뒤 분석을 실행하세요</span></div>
+      <form id="query-form" novalidate>
+        <div class="query-grid">
+          <label>자치구<select id="district" name="district"></select></label>
+          <label>시작일<input id="start-date" name="start" type="date" value="2024-01-15" required></label>
+          <label>종료일<input id="end-date" name="end" type="date" value="2024-02-29" required></label>
+          <label>탐지 방법<select id="method" name="method"><option value="seasonal">계절성 · 평일/주말</option><option value="moving_average">이동평균</option><option value="z_score">Z-score</option></select></label>
+          <label>기준 기간<select id="window" name="window"><option value="7">7일</option><option value="14">14일</option><option value="28" selected>28일</option><option value="56">56일</option></select></label>
+          <label><span id="threshold-label">임계값 (%)</span><input id="threshold" type="number" value="10" min="0" step="any" required aria-describedby="method-hint"></label>
+          <label id="min-samples-field">동일 그룹 최소 표본<input id="min-samples" type="number" value="4" min="1" max="28" step="1" required></label>
+          <button class="primary-button" type="submit" id="run-button">분석 실행 <span aria-hidden="true">↗</span></button>
+        </div>
+        <p class="form-hint" id="method-hint">평일·주말을 나누어 평균 대비 변동률을 비교합니다. 10%는 API 비율 0.10에 대응합니다.</p>
+        <details class="demo-controls"><summary>시연 시나리오 및 데이터 범위</summary><div class="demo-controls-body"><label>Mock 시나리오<select id="scenario"><option value="mixed">정상·이상·판정불가 혼합</option><option value="zero">기준값·표준편차 0</option><option value="empty">빈 결과</option><option value="error">오류 응답</option><option value="slow">느린 응답 (2.5초)</option></select></label><p>Mock 범위: 2024-01-01 ~ 2024-03-30<br>기준 기간은 7·14·28·56일 프리셋입니다. 범위 밖 조회는 빈 결과를 반환합니다.</p></div></details>
+      </form>
+    </section>
+
+    <div id="feedback" class="feedback" role="status" aria-live="polite" tabindex="-1"></div>
+    <div id="results" hidden aria-busy="false">
+      <div class="applied-line"><p id="applied-query"></p><span class="muted">탐지율 = 이상 / 판정 가능</span></div>
+      <section class="metrics" aria-label="선택 방법의 분석 요약">
+        <article class="metric"><span>조회 일수</span><strong id="metric-total">—</strong><small>선택 기간 내 결과</small></article>
+        <article class="metric anomaly-metric"><span><i class="dot red"></i> 이상 탐지</span><strong id="metric-anomaly">—</strong><small id="metric-rate">—</small></article>
+        <article class="metric"><span><i class="dot teal"></i> 정상</span><strong id="metric-normal">—</strong><small>기준 범위 내 변동</small></article>
+        <article class="metric"><span><i class="dot gray"></i> 판정불가</span><strong id="metric-unavailable">—</strong><small>이력 또는 동일 그룹 표본 부족</small></article>
+      </section>
+
+      <div class="analysis-grid">
+        <section class="panel chart-panel" aria-labelledby="trend-heading">
+          <div class="section-heading"><div><h2 id="trend-heading"><span class="section-number">02</span> 생활인구 추이</h2><p class="section-description">차트의 날짜를 선택하면 탐지 근거를 확인할 수 있습니다.</p></div><span class="unit">단위: 명</span></div>
+          <div class="chart-wrap"><canvas id="population-chart" role="img" aria-label="실제 생활인구, 기준값, 정상 범위 및 이상 날짜 시계열. 아래 결과표에서 같은 수치를 확인할 수 있습니다."></canvas></div>
+          <div class="chart-key"><span><i class="line blue"></i>실제 생활인구</span><span><i class="line teal-line"></i>기준값</span><span><i class="range-key"></i>정상 범위</span><span><i class="dot red"></i>이상</span><span><i class="range-key gray-key"></i>판정불가 구간</span></div>
+          <p class="chart-note">판정불가 구간의 기준값·정상 범위는 그리지 않습니다. 날짜는 시간대 변환 없이 표시합니다.</p>
+        </section>
+        <aside class="panel detail-panel" aria-labelledby="detail-heading"><p class="eyebrow">DAILY INSIGHT</p><h2 id="detail-heading">선택 날짜 상세</h2><div id="day-detail"></div></aside>
+      </div>
+
+      <section class="panel comparison-panel" aria-labelledby="comparison-heading">
+        <div class="section-heading"><div><h2 id="comparison-heading"><span class="section-number">03</span> 탐지 방법 비교</h2><p class="section-description">같은 자치구·기간의 결과입니다. 방법별 설정과 판정 가능 일수가 다를 수 있습니다.</p></div></div>
+        <div class="comparison-grid"><div class="comparison-chart-wrap"><canvas id="comparison-chart" role="img" aria-label="방법별 이상, 정상, 판정불가 건수. 옆 표에서 정확한 수치와 탐지율을 확인할 수 있습니다."></canvas></div><div class="table-scroll"><table class="comparison-table"><caption class="sr-only">방법별 분석 통계와 적용 설정</caption><thead><tr><th scope="col">방법 / 적용 설정</th><th scope="col">이상</th><th scope="col">정상</th><th scope="col">판정불가</th><th scope="col">탐지율</th></tr></thead><tbody id="comparison-body"></tbody></table></div></div>
+      </section>
+
+      <section class="panel results-panel" aria-labelledby="table-heading">
+        <div class="section-heading"><div><h2 id="table-heading"><span class="section-number">04</span> 날짜별 탐지 결과</h2><p class="section-description">행의 날짜 버튼으로 상세 설명을 선택하세요. — 표시는 값이 없음을 뜻합니다.</p></div><label class="table-filter">상태<select id="status-filter"><option value="all">전체 결과</option><option value="anomaly">이상</option><option value="normal">정상</option><option value="unavailable">판정불가</option></select></label></div>
+        <div class="table-scroll result-table-scroll"><table><caption class="sr-only">일별 생활인구와 이상탐지 결과</caption><thead><tr><th scope="col">날짜</th><th scope="col">실제 인구</th><th scope="col">기준값</th><th scope="col">변동률</th><th scope="col">이상 점수</th><th scope="col">정상 범위</th><th scope="col">판정</th><th scope="col">처리 상태</th></tr></thead><tbody id="results-body"></tbody></table></div><p id="table-count" class="chart-note"></p>
+      </section>
+    </div>
+    <footer><span>서울 자치구 생활인구 이상탐지 웹서비스</span><span>지표의 동반 변화는 인과관계를 입증하지 않습니다.</span></footer>
+  </main>
+</body>
+</html>
