@@ -43,29 +43,39 @@ class AnomalyExplainer:
                                    + self.DISCLAIMER,
                     "indicators": {name: None for name in MigrationIndicators.FIELDS}}
 
-        # 직전 comparison_window일의 지표 평균 = 기준값 (당일은 제외)
-        past = [same_district[result.date - timedelta(days=k)].indicators
-                for k in range(1, self.comparison_window + 1)
-                if (result.date - timedelta(days=k)) in same_district]
+        # 직전 comparison_window일 중 '오늘과 같은 그룹(평일/주말)'의 지표 평균 = 기준값
+        # (당일은 제외. 평일과 주말을 섞으면 요일 차이를 변화로 착각하게 됨)
+        is_weekend = self._is_weekend(result.date)
+        past = []
+        for k in range(1, self.comparison_window + 1):
+            day = result.date - timedelta(days=k)
+            if day in same_district and self._is_weekend(day) == is_weekend:
+                past.append(same_district[day].indicators)
         baseline = MigrationIndicators.average(past)
         comparison = today_ind.compare_to_baseline(baseline)
 
+        group = "주말" if is_weekend else "평일"
         direction = "증가" if result.actual > (result.expected or 0) else "감소"
         sentences = [f"생활인구가 기준값보다 {direction}했습니다."]
         for name, info in comparison.items():
-            sentences.append(self._describe(self.LABELS[name], info["change_ratio"]))
+            sentences.append(self._describe(self.LABELS[name], info["change_ratio"], group))
         sentences.append(self.DISCLAIMER)
         return {"explanation": " ".join(sentences),
                 "indicators": today_ind.to_dict(),
                 "comparison": comparison}
 
-    def _describe(self, label, ratio):
+    @staticmethod
+    def _is_weekend(day):
+        """토(5)·일(6)이면 주말. SeasonalAnalyzer와 같은 기준(공휴일 구분 없음)"""
+        return day.weekday() >= 5
+
+    def _describe(self, label, ratio, group):
         limit = self.explanation_rules["change_threshold"]
         if ratio is None:
             return f"{label}는 비교할 기준값이 없습니다."
         percent = f"{abs(ratio) * 100:.1f}%"
         if ratio > limit:
-            return f"같은 날 {label}도 평소보다 {percent} 많았습니다."
+            return f"같은 날 {label}도 평소 {group}보다 {percent} 많았습니다."
         if ratio < -limit:
-            return f"같은 날 {label}는 평소보다 {percent} 적었습니다."
-        return f"{label}는 평소와 큰 차이가 없었습니다({percent} 이내)."
+            return f"같은 날 {label}는 평소 {group}보다 {percent} 적었습니다."
+        return f"{label}는 평소 {group}과 큰 차이가 없었습니다({percent} 이내)."
