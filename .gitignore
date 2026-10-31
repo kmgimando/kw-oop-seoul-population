@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local population sources; commit only the explicitly synthetic sample.
+/data/*.csv
+!/data/sample_population.csv

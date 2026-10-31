@@ -1,34 +1,24 @@
 import argparse
 import csv
-from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 
+from csv_population_repository import CsvPopulationRepository
 from detectors import DetectionResult, MovingAverageDetector, ZScoreDetector
 
 
 ROOT = Path(__file__).resolve().parent
 
 
-def load_records(path, encoding="cp949"):
-    records = []
-    with path.open(encoding=encoding, newline="") as source:
-        for row in csv.DictReader(source):
-            records.append(SimpleNamespace(
-                date=datetime.strptime(row["기준일ID"], "%Y%m%d").date(),
-                district_code=row["시구코드"].strip(),
-                district_name=row["시구명"].strip(),
-                total_population=float(row["총생활인구수"]),
-            ))
-    if not records:
-        raise ValueError("CSV에 데이터가 없습니다.")
-    return records
+def load_records(path, encoding="auto"):
+    repository = CsvPopulationRepository(path, encoding=encoding)
+    repository.load()
+    return repository.get_all_records()
 
 
 def main():
     parser = argparse.ArgumentParser(description="이동평균과 Z-score 탐지 비교")
     parser.add_argument("--csv", type=Path)
-    parser.add_argument("--encoding", default="cp949")
+    parser.add_argument("--encoding", default="auto")
     parser.add_argument("--output", type=Path, default=ROOT / "analysis_results")
     parser.add_argument("--ma-window", type=int, default=7)
     parser.add_argument("--ma-threshold", type=float, default=0.10)

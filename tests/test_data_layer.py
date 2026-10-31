@@ -16,6 +16,7 @@ class PopulationRecordTests(unittest.TestCase):
         self.assertEqual(record.to_dict(), {
             "date": "2026-01-01", "district_code": "11680",
             "district_name": "강남구", "total_population": 800000.25,
+            "indicators": {"external_inflow": None, "interdistrict_movement": None},
         })
 
     def test_invalid_values_are_rejected(self):
