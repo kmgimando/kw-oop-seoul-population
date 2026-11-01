@@ -12,6 +12,7 @@ from flask import Flask, jsonify, render_template, request
 from anomaly_explainer import AnomalyExplainer
 from detectors import MovingAverageDetector, ZScoreDetector
 from seasonal_analyzer import SeasonalAnalyzer
+from report_generator import ReportGenerator
 
 # 방법 이름 → 탐지기 클래스 (새 방법이 생기면 여기에 한 줄만 추가: OCP)
 DETECTORS = {
@@ -72,16 +73,6 @@ def parse_request(args, known_districts):
     return code, start, end, settings, detectors
 
 
-def build_payload(records, results_by_method, details_by_method, settings, start, end):
-    """[임시] 응답 구성. 이건희님의 ReportGenerator.build_payload()가 완성되면 교체한다."""
-    blocks = []
-    for name in DETECTORS:
-        rows = [r.to_dict() for r in results_by_method[name] if start <= r.date <= end]
-        blocks.append({"method": name, "settings": settings[name],
-                       "results": rows, "details": details_by_method[name]})
-    return {"schema_version": 1, "methods": blocks}
-
-
 def create_app(repository, explainer=None):
     """repository: get_records(code, start, end), list_districts()를 가진 객체 (김민규님 담당)"""
     app = Flask(__name__)
@@ -129,8 +120,8 @@ def create_app(repository, explainer=None):
                         details[result.date.isoformat()] = info
             details_by_method[name] = details
 
-        payload = build_payload(records, results_by_method, details_by_method,
-                                settings, start, end)
+        payload = ReportGenerator(records, results_by_method, details_by_method,
+                                  settings, start, end).build_payload()
         return app.response_class(json.dumps(payload, ensure_ascii=False, allow_nan=False),
                                   mimetype="application/json")
 
