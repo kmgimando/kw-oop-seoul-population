@@ -1,6 +1,6 @@
 # 서울 생활인구 이상탐지
 
-이동평균과 Z-score로 자치구별 생활인구의 급증·급감을 찾는다.
+이동평균·Z-score·평일/주말 기준으로 자치구별 생활인구의 급증·급감을 찾는다.
 Python 3.10 이상에서 별도 설치 없이 실행할 수 있다.
 
 ## 파일
@@ -9,6 +9,37 @@ Python 3.10 이상에서 별도 설치 없이 실행할 수 있다.
 - `compare_detectors.py`: CSV를 읽고 두 방법을 비교
 - `test_detectors.py`: 탐지 동작 테스트
 - `analysis_results/anomalies.csv`: 이상으로 판정된 날짜와 수치
+- `population_record.py`: 일별 원자료 객체와 값 검증
+- `csv_population_repository.py`: CSV 검증, 유입·이동 지표 로딩, 기간·과거 이력 조회
+- `demo_data.py`: 데이터 품질 확인, 세 탐지기 개별 실행, 조회 결과 JSON 저장
+
+## 데이터 처리 기능 실행
+
+Python 3.10 이상에서 다음 명령으로 가상 데이터 80개 기록을 확인할 수 있다.
+가상 데이터는 2개 자치구의 40일 예제이며 실제 서울시 통계가 아니다.
+
+```console
+python demo_data.py
+python demo_data.py --method seasonal --start 2026-01-29 --end 2026-02-09
+python -m unittest discover -v
+```
+
+실제 CSV는 로컬의 `data/population.csv`에 보관하고 경로를 지정한다.
+실제 원본 CSV는 Git에서 제외하며 UTF-8/CP949는 자동으로 판별한다.
+
+```console
+python demo_data.py --csv data/population.csv --require-indicators
+python demo_data.py --csv data/population.csv --district 11680 --method z_score --start 2026-09-01 --end 2026-09-13
+```
+
+중복 지역·날짜, 지역명 불일치, 잘못된 인구값은 행 번호와 함께 오류로 보고한다.
+누락 날짜는 별도로 보고하며 0이나 추정값으로 채우지 않는다.
+`compare_detectors.py`도 같은 저장소를 사용하므로 데이터 검증 규칙이 공통으로 적용된다.
+
+자세한 인터페이스와 팀원 연동 예제는 [데이터 계층 사용 설명](docs/data-layer.md),
+개발 단계와 확인 결과는 [개발 기록](docs/development_notes.md)을 참고한다.
+계절성·화면 실행은 [프론트엔드 설명](docs/frontend.md)을 참고한다.
+웹 화면은 현재 Mock 방식이며 실제 Flask·설명·결과 생성 객체 연결은 해당 담당자의 후속 작업이다.
 
 ## 실행
 
