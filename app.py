@@ -66,6 +66,11 @@ def parse_request(args, known_districts):
 
     detectors = {}
     for name, cls in DETECTORS.items():
+        required = {"window", "threshold"}
+        if name == "seasonal":
+            required.add("min_samples")
+        if not isinstance(settings[name], dict) or not required.issubset(settings[name]):
+            bad("methods", f"{name} 설정에 {', '.join(sorted(required))} 값이 필요합니다.")
         try:
             detectors[name] = cls(**settings[name])   # 생성자가 값 검증을 해 줌
         except (TypeError, ValueError) as error:
@@ -97,7 +102,9 @@ def create_app(repository, explainer=None):
 
     @app.get("/api/analysis")
     def analysis():
-        districts = {code for code, _name in repository.list_districts()}
+        # The actual Repository returns dicts; existing test doubles use tuples.
+        districts = {item["district_code"] if isinstance(item, dict) else item[0]
+                     for item in repository.list_districts()}
         code, start, end, settings, detectors = parse_request(request.args, districts)
 
         # 기준 계산에 필요한 '조회 시작 전' 이력까지 넉넉히 가져온다

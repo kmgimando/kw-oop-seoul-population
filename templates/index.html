@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="서울 자치구 생활인구 이상탐지 팀프로젝트 Mock 대시보드">
+  <meta name="description" content="서울 자치구 생활인구 이상탐지 팀프로젝트 샘플 대시보드">
   <title>서울 생활인구 | 이상탐지 대시보드</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="../static/css/dashboard.css">
   <script defer src="../static/vendor/chart.umd.min.js"></script>
+  <script id="dashboard-profile" type="application/json">{{ dashboard_profile|default({})|tojson }}</script>
   <script type="module" src="../static/js/dashboard.js"></script>
 </head>
 <body>
@@ -17,7 +18,7 @@
     <div class="header-note"><span class="live-dot"></span> 생활인구 분석 <span class="header-divider">/</span> <span id="source-label">MOCK DEMO</span></div>
   </header>
   <main>
-    <div class="page-heading"><div><p class="eyebrow">POPULATION ANOMALY MONITOR</p><h1>서울 생활인구 이상탐지</h1><p class="subtitle">자치구의 일별 변화를 살펴보고, 평소 패턴을 벗어난 날짜를 확인하세요.</p></div><span class="outline-tag">25개 자치구 · 3가지 탐지 방법</span></div>
+    <div class="page-heading"><div><p class="eyebrow">POPULATION ANOMALY MONITOR</p><h1>서울 생활인구 이상탐지</h1><p class="subtitle">자치구의 일별 변화를 살펴보고, 평소 패턴을 벗어난 날짜를 확인하세요.</p></div><span class="outline-tag" id="coverage-label">25개 자치구 · 3가지 탐지 방법</span></div>
     <aside class="demo-banner" id="demo-banner"><strong>합성 데이터 시연</strong><span>실제 서울 생활인구가 아닙니다. 기존 Python 탐지기로 생성한 Mock 결과이며, 실제 API는 연결되지 않았습니다.</span></aside>
 
     <section class="panel query-panel" aria-labelledby="query-heading">

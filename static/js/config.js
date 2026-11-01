@@ -1,5 +1,29 @@
-// Actual API URL and top-level JSON schema are PROVISIONAL. No API is live.
-export const CONFIG = Object.freeze({ mode: "mock", apiUrl: "/api/analysis" });
+// Runtime coverage comes from the loaded sample Repository, not an assumed
+// 25-district production data source. Static previews continue to default Mock.
+export function parseProfile(text) {
+  try {
+    const profile = JSON.parse(text);
+    if (profile.profile_version !== 1 || profile.source?.kind !== "synthetic_sample" ||
+        typeof profile.source.label !== "string" || !Array.isArray(profile.districts) ||
+        !profile.districts.length || !profile.districts.every(item => Array.isArray(item) && item.length === 2 &&
+          typeof item[0] === "string" && /^\d{5}$/.test(item[0]) && typeof item[1] === "string") ||
+        new Set(profile.districts.map(item => item[0])).size !== profile.districts.length ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(profile.start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(profile.end_date) ||
+        profile.start_date > profile.end_date) return null;
+    return profile;
+  } catch { return null; }
+}
+export function dataMode(search = "", profile = null) {
+  const source = new URLSearchParams(search).get("source");
+  if (source === "mock") return "mock";
+  if (source === "api") return "api";
+  return profile?.default_mode === "api" ? "api" : "mock";
+}
+const profile = parseProfile(globalThis.document?.getElementById("dashboard-profile")?.textContent ?? "{}");
+export const CONFIG = Object.freeze({ mode: dataMode(globalThis.location?.search ?? "", profile), apiUrl: "/api/analysis", profile });
+export function districtOptions(mode, profile) {
+  return mode === "api" ? profile?.districts ?? [] : DISTRICTS;
+}
 export const WINDOWS = Object.freeze([7, 14, 28, 56]);
 export const METHODS = Object.freeze({
   moving_average: { name: "이동평균", window: 7, threshold: 0.10, ratio: true },

@@ -1,4 +1,4 @@
-import { CONFIG, DISTRICTS, METHODS } from "./config.js";
+import { CONFIG, districtOptions, METHODS } from "./config.js";
 import { fetchAnalysis } from "./api.js";
 import { LatestRequest, validateQuery, summarize, number, percent, settingLabel, stateOf, STATE_LABELS, STATUS_LABELS } from "./model.js";
 import { renderCharts, highlightDate } from "./charts.js";
@@ -15,6 +15,7 @@ const settings = Object.fromEntries(Object.entries(METHODS).map(([key, value]) =
   { window: value.window, threshold: value.threshold, ...(key === "seasonal" ? { min_samples: value.min_samples } : {}) }]));
 let activeMethod = "seasonal", currentData, selectedDate;
 const requests = new LatestRequest(fetchAnalysis);
+const districts = districtOptions(CONFIG.mode, CONFIG.profile);
 
 function saveSettings() {
   settings[activeMethod] = { window: Number($("window").value),
@@ -38,7 +39,7 @@ function readQuery() {
   saveSettings();
   return validateQuery({ district_code: $("district").value, start_date: $("start-date").value,
     end_date: $("end-date").value, selected_method: activeMethod,
-    methods: structuredClone(settings), scenario: $("scenario").value });
+    methods: structuredClone(settings), scenario: $("scenario").value }, districts);
 }
 function feedback(kind, message) {
   $("feedback").dataset.kind = kind;
@@ -108,11 +109,13 @@ function renderData(data) {
   currentData = data;
   const block = currentBlock(), stats = summarize(block.results), q = data.query;
   if (!stats.total) {
-    feedback("empty", "조회된 데이터가 없습니다. 기간을 확인하거나 다른 시나리오로 다시 실행하세요. Mock 데이터 범위는 2024-01-01 ~ 2024-03-30입니다.");
+    feedback("empty", CONFIG.mode === "mock"
+      ? "조회된 데이터가 없습니다. 기간을 확인하거나 다른 시나리오로 다시 실행하세요. Mock 데이터 범위는 2024-01-01 ~ 2024-03-30입니다."
+      : `조회된 기록이 없습니다. 합성 샘플 범위는 ${CONFIG.profile.start_date} ~ ${CONFIG.profile.end_date}입니다.`);
     return;
   }
   $("results").hidden = false;
-  $("applied-query").textContent = `${DISTRICTS.find(([code]) => code === q.district_code)[1]} · ${q.start_date} ~ ${q.end_date} · ${METHODS[q.selected_method].name} · ${settingLabel(q.selected_method, block.settings)}`;
+  $("applied-query").textContent = `${districts.find(([code]) => code === q.district_code)[1]} · ${q.start_date} ~ ${q.end_date} · ${METHODS[q.selected_method].name} · ${settingLabel(q.selected_method, block.settings)}`;
   for (const [id, value] of [["total", stats.total], ["anomaly", stats.anomaly], ["normal", stats.normal], ["unavailable", stats.unavailable]]) $(`metric-${id}`).textContent = `${value}일`;
   $("metric-rate").textContent = `탐지율 ${percent(stats.rate)} · 판정 가능 ${stats.evaluated}일`;
   $("status-filter").value = "all";
@@ -140,12 +143,27 @@ async function runAnalysis(event) {
   }
 }
 
-for (const [code, name] of DISTRICTS) { const option = create("option", name); option.value = code; $("district").append(option); }
-$("district").value = "11440";
+for (const [code, name] of districts) { const option = create("option", name); option.value = code; $("district").append(option); }
+$("district").value = CONFIG.mode === "api" ? districts[0]?.[0] ?? "" : "11440";
 $("method").addEventListener("change", () => { saveSettings(); activeMethod = $("method").value; updateMethodFields(); });
 $("window").addEventListener("change", () => { $("min-samples").max = $("window").value; });
 $("query-form").addEventListener("submit", runAnalysis);
 $("status-filter").addEventListener("change", renderRows);
-if (CONFIG.mode !== "mock") { $("demo-banner").hidden = true; $("source-label").textContent = "API DATA"; $("scenario").closest("details").hidden = true; }
+if (CONFIG.mode === "api") {
+  $("scenario").closest("details").hidden = true;
+  $("source-label").textContent = "SAMPLE API";
+  $("coverage-label").textContent = `${districts.length}개 자치구 · 3가지 탐지 방법`;
+  if (CONFIG.profile) {
+    $("start-date").value = CONFIG.profile.start_date;
+    $("end-date").value = CONFIG.profile.end_date;
+    $("demo-banner").replaceChildren(create("strong", "합성 샘플 CSV · Flask API"),
+      create("span", `${districts.map(item => item[1]).join("·")} / ${CONFIG.profile.start_date} ~ ${CONFIG.profile.end_date}. 실제 서울시 분석 결과가 아닙니다.`));
+  }
+}
 updateMethodFields();
-runAnalysis();
+if (CONFIG.mode === "api" && !CONFIG.profile) {
+  $("run-button").disabled = true;
+  $("demo-banner").replaceChildren(create("strong", "API 지원 정보 없음"),
+    create("span", "데이터 출처와 지원 지역을 확인할 수 없어 조회를 중단했습니다."));
+  feedback("error", "API 데이터의 지원 정보를 받지 못했습니다. 샘플 대시보드 실행 방법을 확인하세요.");
+} else runAnalysis();

@@ -1,6 +1,8 @@
 # 프론트엔드 실행 및 연동 안내
 
-현재 화면은 합성 데이터와 Mock JSON으로 동작한다. 실제 서울 생활인구 분석 결과나 Flask API가 아니다. 프론트엔드 프레임워크와 npm 설치는 필요하지 않다.
+초기 개발 단계의 화면은 합성 데이터와 Mock JSON으로 동작했다. 프론트엔드 프레임워크와 npm 설치는 필요하지 않다.
+
+2026-11-01 업데이트: 새 작업 브랜치에서는 기존 Flask API에 합성 sample_population.csv를 연결했다. `python run_sample_dashboard.py --port 8767` 실행 후 루트 주소는 샘플 API 모드, `/?source=mock`은 기존 Mock 모드다. API 지원 범위는 종로구·강남구의 2026-01-01~2026-02-09이며 실제 서울시 통계가 아니다. 현재 실행·검증 결과는 [최신 main 기반 API 통합 안내](frontend-api-integration.md)를 따른다. 아래 내용은 원래 Mock 개발 단계의 기록이다.
 
 ## 추가 파일과 역할
 

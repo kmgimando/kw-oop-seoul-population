@@ -6,8 +6,8 @@ export function isISODate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-export function validateQuery(query) {
-  if (!DISTRICTS.some(([code]) => code === query.district_code)) throw new Error("서울시 자치구를 선택하세요.");
+export function validateQuery(query, districts = DISTRICTS) {
+  if (!districts.some(([code]) => code === query.district_code)) throw new Error("지원되는 자치구를 선택하세요.");
   if (!isISODate(query.start_date) || !isISODate(query.end_date)) throw new Error("유효한 시작일과 종료일을 입력하세요.");
   if (query.start_date > query.end_date) throw new Error("시작일은 종료일보다 늦을 수 없습니다.");
   if (!Object.hasOwn(METHODS, query.selected_method)) throw new Error("탐지 방법을 선택하세요.");
