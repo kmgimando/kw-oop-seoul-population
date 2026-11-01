@@ -39,7 +39,8 @@ python demo_data.py --csv data/population.csv --district 11680 --method z_score 
 자세한 인터페이스와 팀원 연동 예제는 [데이터 계층 사용 설명](docs/data-layer.md),
 개발 단계와 확인 결과는 [개발 기록](docs/development_notes.md)을 참고한다.
 계절성·화면 실행은 [프론트엔드 설명](docs/frontend.md)을 참고한다.
-웹 화면은 현재 Mock 방식이며 실제 Flask·설명·결과 생성 객체 연결은 해당 담당자의 후속 작업이다.
+현재 작업 폴더의 웹 화면은 Mock 방식이다. API 브랜치와의 호환성은 별도 결합 환경에서 검증했고,
+실제 브랜치 병합·서버 시작·화면 모드 전환·ReportGenerator 교체는 [팀 API 연동 기록](docs/team-integration.md)을 참고한다.
 
 ## 실행
 

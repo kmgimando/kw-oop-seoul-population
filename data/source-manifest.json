@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "dataset": "자치구별 서울 생활인구(250m) 일별집계표",
+  "source_file_name": "자치구별 서울 생활인구(250m) 일별집계표.csv",
+  "sha256": "1e8622bc35db7303ee7864a90428909a18fa5cb0d14fe49097b43e78e2d9fd2a",
+  "size_bytes": 6497750,
+  "encoding": "cp949",
+  "record_count": 35126,
+  "district_count": 25,
+  "region_count": 26,
+  "start_date": "2023-01-01",
+  "end_date": "2026-09-13",
+  "missing_dates": [
+    "2024-02-29"
+  ]
+}

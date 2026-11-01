@@ -118,8 +118,10 @@ results = [row for row in detector.detect(records) if start <= row.date <= end]
 기간에 실제 기록이 하나도 없으면 과거 이력이 있더라도 빈 목록을 반환한다.
 누락 날짜 때문에 이력이 끊기면 기존 BaseDetector가 이력을 초기화하므로 초기 결과가 판정불가일 수 있다.
 
-`list_districts()`와 `get_all_records()`는 기본적으로 서울시 합계 코드 `11000`도 포함한다.
-자치구 선택 화면과 25개 자치구 비교에서는 `include_seoul_total=False`를 명시한다.
+`list_districts()`는 Flask 서버의 계약에 맞춰 `[(코드, 이름), ...]`을 반환하며 기본적으로 서울시 합계 `11000`을 제외한다.
+`include_seoul_total=True`를 지정하면 서울시 합계도 목록에 포함한다.
+`get_all_records()`는 기존 탐지 비교 실행과의 호환성을 위해 기본적으로 서울시 합계도 포함한다.
+25개 자치구의 기록만 필요할 때는 `get_all_records(include_seoul_total=False)`를 사용한다.
 서울시 합계를 25개 자치구와 다시 더하지 않는다.
 없는 지역 코드와 잘못된 기간은 ValueError, 로딩 전 조회는 RuntimeError다.
 알려진 지역의 유효한 빈 기간 조회는 오류가 아닌 빈 목록이다.
@@ -142,11 +144,12 @@ results = [row for row in detector.detect(records) if start <= row.date <= end]
 ## MigrationIndicators 연결
 
 지표 비교·참고 설명 규칙은 손호진 담당 범위다. 이 코드에서는 지표 객체 자체를 새로 구현하지 않았다.
-두 숫자 원자료는 이미 모든 기록에 보관하며, 외부 클래스가 준비되면 생성자를 주입할 수 있다.
-아래의 `MigrationIndicators`는 해당 모듈이 실제 구현된 뒤 사용하는 연결 예제다.
+`migration_indicators.py`가 함께 있으면 `MigrationIndicators`를 자동으로 연결한다.
+API 브랜치 병합 전처럼 해당 모듈이 없을 때도 두 숫자 원자료를 보관하여 데이터 계층만 실행할 수 있다.
+다른 구현을 연결할 때는 아래처럼 생성자를 직접 주입할 수도 있다.
 
 ```python
-# 손호진 담당 모듈이 준비된 뒤에만 실행한다.
+# feature/api-explainer가 함께 있을 때 실행한다.
 from migration_indicators import MigrationIndicators
 
 repository = CsvPopulationRepository(
@@ -160,16 +163,22 @@ indicator_object = record.indicators
 ```
 
 생성자는 `external_inflow=숫자, interdistrict_movement=숫자` 키워드 인자를 받고 같은 이름의 속성을 보존해야 한다.
-두 값 중 하나라도 없으면 객체를 만들지 않고 `record.indicators=None`을 유지한다.
+하나의 값만 있으면 나머지를 None으로 보존해 객체를 만들며, 두 값이 모두 없으면 `record.indicators=None`을 유지한다.
 객체가 주입되지 않았더라도 원래 두 지표값과 `to_dict()["indicators"]`는 사용할 수 있다.
+`PopulationRecord(..., indicators=MigrationIndicators(...))`처럼 객체만 전달한 경우에도 두 원자료 속성이 채워진다.
+숫자 속성과 객체를 동시에 제공하면서 값이 다르면 오류로 알린다.
 유입·이동 값만으로 실제 사건이나 이상 변동의 인과관계를 단정하지 않는다.
 
 ## 검증 결과와 남은 연결 작업
 
-Python 66개 테스트와 기존 JavaScript 19개 테스트가 통과했다.
+데이터 브랜치 단독에서는 Python 67개가 통과하고, API 코드가 필요한 6개는 건너뛴다.
+별도 폴더에 API 브랜치의 커밋 `4061c70`과 현재 데이터 코드를 함께 구성했을 때 Python 80개가 모두 통과했다.
+기존 JavaScript 19개 테스트도 이전 데이터 계층 보완에서 통과했다.
 실제 파일은 35,126개 기록, 25개 자치구와 서울시 합계, 2023-01-01~2026-09-13 범위다.
 두 이동 지표에 빠진 값은 없고, 모든 지역에서 2024-02-29가 빠진 것을 확인했다.
 세 탐지기의 결과는 기존 네 속성 기반 로더와 동일했고, 기간 앞 이력을 포함한 조회도 전체 계산과 일치했다.
 
-실제 Flask 서버, MigrationIndicators의 비교 규칙, AnomalyExplainer, ReportGenerator와의 실행은
-해당 코드가 구현된 뒤 담당자와 연결해야 한다. 프론트엔드는 현재 Mock 모드를 유지한다.
+Flask test_client로 실제 CSV를 요청해 지표 객체·설명·임시 응답 생성까지 검증하고, 해당 JSON이 프론트엔드 adapter에서 처리되는 것도 확인했다.
+이는 Git 브랜치를 병합하거나 브라우저에서 실제 서버를 띄운 검증은 아니다.
+ReportGenerator는 팀원 구현 후 임시 함수를 교체해야 하며, 현재 작업 폴더의 프론트엔드는 Mock 모드를 유지한다.
+구체적인 연동 결과와 보고서용 오류 수정 사례는 [팀 API 연동 기록](team-integration.md)을 참고한다.
