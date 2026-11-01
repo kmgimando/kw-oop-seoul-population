@@ -1,7 +1,12 @@
-"""생활인구 기록·탐지 결과·참고 설명을 화면 응답 데이터로 구성 (담당: 이건희)
+"""
+생활인구 기록·탐지 결과·참고 설명을 화면 응답 데이터로 구성
 
 응답 형식: docs/api-contract-proposal.md (schema_version + methods 3개)
 검증 기준: 프론트엔드 static/js/adapter.js가 거부하는 응답은 서버에서 먼저 막는다.
+records: 사전 이력 포함 생활인구 기록
+results: 방법별 DetectionResult 목록
+explanations: 방법별 {"YYYY-MM-DD": 설명}
+settings: 요청에서 검증된 방법별 설정
 """
 
 import json
@@ -27,8 +32,6 @@ class ReportGenerator:
                    "is_anomaly", "status", "history_size") + NULLABLE_NUMBER_KEYS
 
     def __init__(self, records, results, explanations, settings, start, end):
-        """records: 사전 이력 포함 생활인구 기록, results: 방법별 DetectionResult 목록,
-        explanations: 방법별 {"YYYY-MM-DD": 설명}, settings: 요청에서 검증된 방법별 설정"""
         self.records = records
         self.results = results
         self.explanations = explanations
