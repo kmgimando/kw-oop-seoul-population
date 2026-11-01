@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+.vscode
+.idea
+
+# 원본 CSV는 이미지에 넣지 않는다 (합성 샘플만 포함)
+data/*.csv
+!data/sample_population.csv
+
+tests
+*.md
+!README.md
