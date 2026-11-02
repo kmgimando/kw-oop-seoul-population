@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: seoul-population-dashboard
+    runtime: docker
+    branch: main
+    plan: free
+    autoDeployTrigger: "off"
+    healthCheckPath: /healthz
+    envVars:
+      - key: POPULATION_CSV_PATH
+        value: /app/data/population.csv
+      - key: WEB_CONCURRENCY
+        value: "2"

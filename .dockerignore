@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+*.pyc
+.vscode
+.idea
+
+# 팀에서 합의한 원본 스냅샷과 합성 샘플만 이미지에 포함한다.
+data/*.csv
+!data/sample_population.csv
+!data/population.csv
+
+tests
+*.md
+!README.md

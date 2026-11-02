@@ -1,5 +1,7 @@
 # 생활인구 데이터 계층 사용 설명
 
+2026-11-02 전체 원본 연결과 실행 방법: [전체 CSV 연결·배포 안내](full-csv-deployment.md).
+
 김민규 담당 `PopulationRecord`와 `CsvPopulationRepository`의 구현 및 팀원 연동 규격이다.
 탐지기 코드는 기존 인터페이스를 유지하고, `compare_detectors.load_records()`를 저장소에 연결했다.
 새로운 서비스 클래스나 Flask 서버를 추가하지 않는다.

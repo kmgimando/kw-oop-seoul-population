@@ -1,9 +1,9 @@
-import { CONFIG } from "./config.js";
+import { CONFIG, districtOptions } from "./config.js";
 import { adaptResponse } from "./adapter.js";
 import { validateQuery } from "./model.js";
 import { fetchMock } from "./mock-provider.js";
 
-// Provisional GET contract. This function is NOT used in default mock mode.
+// Existing Flask GET contract. No silent Mock fallback for HTTP failures.
 export async function fetchHttp(query, { signal, fetchImpl = fetch } = {}) {
   const params = new URLSearchParams({ district_code: query.district_code,
     start_date: query.start_date, end_date: query.end_date, methods: JSON.stringify(query.methods) });
@@ -16,7 +16,7 @@ export async function fetchHttp(query, { signal, fetchImpl = fetch } = {}) {
   return response.json();
 }
 export async function fetchAnalysis(query, { signal } = {}) {
-  validateQuery(query);
+  validateQuery(query, districtOptions(CONFIG.mode, CONFIG.profile));
   const raw = CONFIG.mode === "mock" ? await fetchMock(query, { signal }) : await fetchHttp(query, { signal });
   return adaptResponse(raw, query);
 }
