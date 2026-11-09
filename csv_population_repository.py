@@ -40,6 +40,15 @@ class CsvPopulationRepository:
         self.encoding = encoding.strip()
         self.require_indicators = require_indicators
         self.indicators_factory = indicators_factory
+        if self.indicators_factory is None:
+            try:
+                from migration_indicators import MigrationIndicators
+            except ModuleNotFoundError as error:
+                # API 브랜치 병합 전에는 데이터 계층만 독립적으로 실행할 수 있다.
+                if error.name != "migration_indicators":
+                    raise
+            else:
+                self.indicators_factory = MigrationIndicators
         self._records_by_district: dict[str, tuple[PopulationRecord, ...]] = {}
         self._dates_by_district: dict[str, tuple[date, ...]] = {}
         self._quality: dict = {}
@@ -134,8 +143,8 @@ class CsvPopulationRepository:
             total_population=float(row["총생활인구수"]),
             **values,
         )
-        # 외부 지표 클래스가 준비되면 생성자만 주입한다. 설명 규칙은 구현하지 않는다.
-        if self.indicators_factory is not None and all(value is not None for value in values.values()):
+        # 지표가 하나만 있어도 None을 보존해 객체로 전달한다. 두 값이 모두 없으면 미제공이다.
+        if self.indicators_factory is not None and any(value is not None for value in values.values()):
             indicators = self.indicators_factory(**values)
             if indicators is None or any(
                 getattr(indicators, name, None) != value for name, value in values.items()
@@ -180,16 +189,17 @@ class CsvPopulationRepository:
         """자치구 코드·날짜 순으로 전체 기록을 반환한다."""
         return [
             record
-            for district in self.list_districts(include_seoul_total=include_seoul_total)
-            for record in self._records_by_district[district["district_code"]]
+            for code, _name in self.list_districts(include_seoul_total=include_seoul_total)
+            for record in self._records_by_district[code]
         ]
 
-    def list_districts(self, *, include_seoul_total: bool = True) -> list[dict[str, str]]:
+    def list_districts(self, *, include_seoul_total: bool = False) -> list[tuple[str, str]]:
+        """Flask API용 (코드, 이름) 목록. 기본값은 서울시 합계를 제외한다."""
         self._require_loaded()
         if type(include_seoul_total) is not bool:
             raise ValueError("include_seoul_total은 bool이어야 합니다.")
         return [
-            {"district_code": code, "district_name": records[0].district_name}
+            (code, records[0].district_name)
             for code, records in self._records_by_district.items()
             if include_seoul_total or code != self.SEOUL_TOTAL_CODE
         ]

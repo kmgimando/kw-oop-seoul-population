@@ -29,6 +29,16 @@ class RecordValueTests(unittest.TestCase):
             with self.subTest(code=code), self.assertRaises(ValueError):
                 PopulationRecord(date(2026, 1, 1), code, "종로구", 100)
 
+    def test_indicator_object_alone_populates_original_values_and_json(self):
+        indicators = SimpleNamespace(external_inflow=0, interdistrict_movement=30)
+        record = PopulationRecord(date(2026, 1, 1), "11110", "종로구", 100, indicators=indicators)
+        self.assertEqual((record.external_inflow, record.interdistrict_movement), (0, 30))
+        self.assertEqual(record.to_dict()["indicators"], {"external_inflow": 0.0, "interdistrict_movement": 30.0})
+        with self.assertRaisesRegex(ValueError, "값이 다릅니다"):
+            PopulationRecord(date(2026, 1, 1), "11110", "종로구", 100, 1, 30, indicators)
+        with self.assertRaisesRegex(ValueError, "속성이 필요"):
+            PopulationRecord(date(2026, 1, 1), "11110", "종로구", 100, indicators=object())
+
 
 class RepositoryValidationTests(unittest.TestCase):
     def setUp(self):
@@ -136,16 +146,19 @@ class RepositoryValidationTests(unittest.TestCase):
         quality["missing_dates_by_district"]["11110"].clear()
         self.assertEqual(len(repository.get_data_quality()["missing_dates_by_district"]["11110"]), 2)
 
-    def test_seoul_total_is_excluded_only_when_requested(self):
+    def test_api_district_contract_excludes_seoul_total_by_default(self):
         repository = self.repository([
             ["20260101", "11000", "서울시", "1000"],
             ["20260101", "11110", "종로구", "100"],
         ])
-        self.assertEqual(len(repository.list_districts()), 2)
+        self.assertEqual(len(repository.list_districts()), 1)
+        self.assertEqual(repository.list_districts(), [("11110", "종로구")])
+        self.assertEqual(len(repository.list_districts(include_seoul_total=True)), 2)
         self.assertEqual(repository.get_data_quality()["district_count"], 1)
         self.assertEqual(repository.list_districts(include_seoul_total=False),
-                         [{"district_code": "11110", "district_name": "종로구"}])
+                         [("11110", "종로구")])
         self.assertEqual(len(repository.get_all_records(include_seoul_total=False)), 1)
+        self.assertEqual(len(repository.get_all_records()), 2)
 
     def test_history_uses_calendar_days_and_empty_queries_stay_empty(self):
         repository = self.repository([
@@ -180,9 +193,11 @@ class RepositoryValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "지표 객체"):
             CsvPopulationRepository(self.path, indicators_factory=lambda **kwargs: object()).load()
         self.write([["20260101", "11110", "종로구", "100", "", "30"]], headers=headers)
-        repository = CsvPopulationRepository(self.path, indicators_factory=lambda **kwargs: self.fail("missing metrics"))
+        repository = CsvPopulationRepository(self.path, indicators_factory=SimpleNamespace)
         repository.load()
-        self.assertIsNone(repository.get_records("11110")[0].indicators)
+        partial = repository.get_records("11110")[0].indicators
+        self.assertIsNone(partial.external_inflow)
+        self.assertEqual(partial.interdistrict_movement, 30)
 
     def test_failed_reload_keeps_records_date_index_and_quality_consistent(self):
         repository = self.repository([["20260101", "11110", "종로구", "100"]])

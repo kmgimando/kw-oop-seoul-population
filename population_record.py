@@ -20,6 +20,16 @@ class PopulationRecord:
     indicators: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        # 팀원 코드처럼 indicators 객체만 전달해도 원자료 필드와 직렬화가 일치한다.
+        if self.indicators is not None:
+            for name in ("external_inflow", "interdistrict_movement"):
+                if not hasattr(self.indicators, name):
+                    raise ValueError(f"indicators 객체에 {name} 속성이 필요합니다.")
+                indicator_value = getattr(self.indicators, name)
+                original = getattr(self, name)
+                if original is not None and original != indicator_value:
+                    raise ValueError(f"{name} 원자료와 indicators 객체의 값이 다릅니다.")
+                object.__setattr__(self, name, indicator_value)
         # 잘못된 값이 담긴 객체를 다른 팀원의 탐지기로 넘기지 않는다.
         self.validate()
         for name in ("total_population", "external_inflow", "interdistrict_movement"):
