@@ -9,6 +9,7 @@ __pycache__
 data/*.csv
 !data/sample_population.csv
 !data/population.csv
+data/.seoul-api-cache/
 
 tests
 *.md

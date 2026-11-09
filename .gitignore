@@ -221,3 +221,4 @@ __marimo__/
 /data/*.csv
 !/data/sample_population.csv
 !/data/population.csv
+/data/.seoul-api-cache/

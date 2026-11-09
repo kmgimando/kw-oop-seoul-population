@@ -29,12 +29,14 @@ export function sourcePresentation(profile) {
   const range = `${profile.start_date} ~ ${profile.end_date}`;
   const missing = profile.missing_dates?.length
     ? ` 원자료 누락: ${profile.missing_dates.join(", ")}.` : "";
+  const refresh = profile.source.auto_refresh === true ? " 서울시 Open API 자동 갱신 사용 중." : "";
   return {
     label: sample ? "SAMPLE API" : "CSV API",
-    title: sample ? "합성 샘플 CSV · Flask API" : "서울 생활인구 · 원본 CSV",
+    title: sample ? "합성 샘플 CSV · Flask API"
+      : profile.source.auto_refresh === true ? "서울 생활인구 · CSV + Open API" : "서울 생활인구 · 원본 CSV",
     description: sample
       ? `${profile.districts.map(item => item[1]).join("·")} / ${range}. 실제 서울시 분석 결과가 아닙니다.`
-      : `${profile.districts.length}개 자치구 / ${range}. 처음에는 최근 90일을 표시합니다.${missing}`,
+      : `${profile.districts.length}개 자치구 / ${range}. 처음에는 최근 90일을 표시합니다.${missing}${refresh}`,
     empty: `조회된 기록이 없습니다. ${profile.source.label} 범위는 ${range}입니다.`,
   };
 }

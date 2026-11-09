@@ -5,13 +5,17 @@ Docker/Render: gunicorn 'dashboard_app:create_dashboard_app()'
 """
 
 import argparse
+import logging
 import os
 from datetime import timedelta
 from pathlib import Path
+from threading import Thread
 
 from app import create_app
 from csv_population_repository import CsvPopulationRepository
 from migration_indicators import MigrationIndicators
+from population_refresh import PopulationRefresh
+from seoul_population_api import SeoulPopulationApi
 
 
 ROOT = Path(__file__).resolve().parent
@@ -23,21 +27,59 @@ def create_dashboard_app(csv_path=None):
     source = Path(csv_path or os.environ.get("POPULATION_CSV_PATH") or DEFAULT_CSV)
     if not source.is_absolute():
         source = ROOT / source
-    return create_csv_app(source, source_kind="seoul_population", label="서울 생활인구 CSV")
+    return create_csv_app(source, source_kind="seoul_population", label="서울 생활인구 CSV",
+                          refresh_key=os.environ.get("SEOUL_OPEN_API_KEY", "").strip())
 
 
-def create_csv_app(source, *, source_kind, label):
+def create_csv_app(source, *, source_kind, label, refresh_key=""):
     """출처·지원 범위를 실제로 로딩한 Repository에서 읽는다. 샘플 실행도 재사용한다."""
     repository = CsvPopulationRepository(source, require_indicators=True,
                                          indicators_factory=MigrationIndicators)
     repository.load()
+    application = create_app(repository)
+    refresh = None
+    if refresh_key:
+        cache_dir = Path(os.environ.get("SEOUL_POPULATION_CACHE_DIR") or "data/.seoul-api-cache")
+        refresh = PopulationRefresh(repository, ROOT / cache_dir, SeoulPopulationApi(refresh_key))
+        try:
+            repository = refresh.load_latest()
+        except (OSError, ValueError) as error:
+            application.logger.warning("갱신 CSV를 읽지 못해 원본 CSV를 사용합니다. %s", error)
+
+    def publish(updated_repository):
+        profile = _dashboard_profile(updated_repository, source, source_kind, label)
+        if refresh is not None:
+            profile["source"]["auto_refresh"] = True
+        application.config["POPULATION_REPOSITORY"] = updated_repository
+        application.config["DASHBOARD_PROFILE"] = profile
+
+    publish(repository)
+
+    @application.context_processor
+    def dashboard_context():
+        return {"dashboard_profile": application.config["DASHBOARD_PROFILE"]}
+
+    @application.get("/healthz")
+    def health():
+        profile = application.config["DASHBOARD_PROFILE"]
+        return {"status": "ok", "district_count": len(profile["districts"]),
+                "record_count": profile["record_count"]}
+
+    if refresh is not None:
+        application.logger.setLevel(logging.INFO)
+        Thread(target=refresh.run, args=(publish, application.logger),
+               name="seoul-population-refresh", daemon=True).start()
+    return application
+
+
+def _dashboard_profile(repository, source, source_kind, label):
     start, end = repository.get_date_range()
     districts = repository.list_districts(include_seoul_total=False)
     # 기존 main의 dict와 데이터 계층 수정본의 tuple을 모두 지원한다.
     options = [[item["district_code"], item["district_name"]]
                if isinstance(item, dict) else list(item) for item in districts]
     quality = repository.get_data_quality()
-    profile = {
+    return {
         "profile_version": 1, "default_mode": "api", "districts": options,
         "start_date": start.isoformat(), "end_date": end.isoformat(),
         "default_start_date": max(start, end - timedelta(days=89)).isoformat(),
@@ -47,20 +89,6 @@ def create_csv_app(source, *, source_kind, label):
         "missing_dates": sorted({day for days in quality["missing_dates_by_district"].values()
                                  for day in days}),
     }
-    application = create_app(repository)
-    application.config["POPULATION_REPOSITORY"] = repository
-    application.config["DASHBOARD_PROFILE"] = profile
-
-    @application.context_processor
-    def dashboard_context():
-        return {"dashboard_profile": profile}
-
-    @application.get("/healthz")
-    def health():
-        return {"status": "ok", "district_count": len(options),
-                "record_count": quality["record_count"]}
-
-    return application
 
 
 def main():

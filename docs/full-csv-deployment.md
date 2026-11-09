@@ -1,10 +1,7 @@
 # 전체 CSV 연결·실행·배포 안내
 
-2026-11-02. 기준 main은 `223d6ef`이며, 미반영 데이터 수정 `a28e9bc`의 변경 내용도 포함한다.
-작업 브랜치는 기존 `feature/data-layer`다. 최초에는 별도 worktree에서 검증했고,
-이후 사용자 요청에 따라 검증한 수정본을 원래 `kw-oop-seoul-population` 폴더에 반영했다.
-최신 main의 팀원 이력은 로컬 브랜치에 반영했으며, 아직 커밋하기 전의 통합 상태다.
-commit·push·GitHub merge·Render 배포는 수행하지 않았다.
+전체 CSV 통합 기준 커밋은 `feature/data-layer`의 `3c5d210`이다.
+이 커밋에는 `223d6ef`까지의 팀원 변경과 `a28e9bc`의 데이터 수정이 들어 있다.
 
 ## 내 컴퓨터에서 화면 실행
 
@@ -45,7 +42,8 @@ python dashboard_app.py --csv "D:\자료\생활인구.csv"
 
 `.gitattributes`로 이 CSV의 줄바꿈 변환을 막아 Windows와 Linux에서 동일한 바이트를 유지한다.
 Git/Docker 제외 규칙은 합의한 이 원본과 합성 샘플만 포함하도록 수정했다.
-이 자료는 고정된 스냅샷이며 매일 자동 갱신되지 않는다. 교체할 때는 manifest와 검증 결과도 갱신한다.
+이 자료는 고정된 스냅샷이다. 자동 갱신을 켜면 새 날짜를 별도의 사본에 더한다.
+팀에서 포함 원본을 교체할 때는 manifest와 검증 결과도 갱신한다.
 탐지율은 정확도가 아니며, 평일·주말만 구분하고 공휴일은 별도 처리하지 않는다.
 유입·이동 지표가 함께 변해도 원인이라고 단정하지 않는다.
 
@@ -65,6 +63,24 @@ API 요청·응답 형식, 탐지 공식, 임계값, 설명 규칙, 결과 생�
 파일 충돌 없이도 서버 시작이 실패했다. 공통 조립 함수가 두 형식을 읽도록 수정하고 샘플 실행에서도 재사용한다.
 추가 검토에서는 API 날짜를 YYYY-MM-DD로 엄격히 확인하고, 시작일 이전 이력 계산이 날짜 최솟값을 넘지 않게 했다.
 화면 프로필도 실제 달력 날짜와 누락 날짜 목록의 형식을 확인한다.
+
+## 서울시 Open API 자동 갱신
+
+- `SeoulPopulationApi`가 [OA-23022](https://data.seoul.go.kr/dataList/OA-23022/S/1/datasetView.do)의
+  `SPOP_DAILYSUM_JACHI_250`에서 날짜를 지정해 JSON을 받는다. 공식 주소는 HTTP를 사용한다.
+  인증키는 서버 환경변수 `SEOUL_OPEN_API_KEY`로 전달하고 로그나 화면에 표시하지 않는다.
+- `PopulationRefresh`가 원본 CSV 마지막 날짜 이후부터 한국 시간 기준 4일 전까지 확인한다.
+  25개 자치구와 서울시 합계가 모두 있는 날짜를 추가하고, 아직 비어 있는 날짜는 다음 확인 때 다시 요청한다.
+  이미 받은 날짜는 재요청하지 않는다. 원본 날짜 범위의 정정과 누락은 반영 대상에서 제외한다.
+- 원본은 보존한다. 갱신 사본을 임시 파일에 구성하고 `CsvPopulationRepository`로 전체 검증한 뒤
+  `data/.seoul-api-cache/`에 저장한다. 정상 사본만 대시보드에 반영한다.
+- 서버 시작 직후와 한국 시간 정오에 확인한다. 요청이나 검증에 실패하면 기존 자료를 제공하고
+  한 시간 이내에 다시 시도한다. 서버가 꺼져 있는 동안의 새 날짜는 다음 시작 때 확인한다.
+- 서버 로그에서 최신 날짜를 확인하고 화면을 새로고침한다. 인증키 없이 실행하거나
+  합성 샘플 진입점을 사용하면 자동 갱신이 시작되지 않는다.
+
+캐시 폴더를 바꾸려면 `SEOUL_POPULATION_CACHE_DIR`를 지정한다. 갱신 사본이 손상되어 읽기 실패가 반복되면
+서버를 멈추고 해당 갱신 사본을 다른 폴더로 옮긴 다음 다시 실행해 원본에서 수집한다.
 
 ## 팀원 확인 사항
 
@@ -86,7 +102,8 @@ Render가 저장소의 Dockerfile로 직접 이미지를 만들 수 있어 이 �
 
 Dockerfile은 Python 3.12에 Flask 3.1.2와 Gunicorn 23.0.0을 설치한다.
 Gunicorn은 배포용 요청 처리 서버이고 `dashboard_app:create_dashboard_app()`을 실행한다.
-CSV를 먼저 로딩한 뒤 worker를 시작하며, Render가 제공하는 PORT를 사용해 0.0.0.0에 바인딩한다.
+Render가 제공하는 PORT를 사용해 0.0.0.0에 바인딩한다. 자동 갱신 모드에서는 한 worker가
+갱신과 조회를 함께 맡는다. 고정 CSV 모드에서는 기존 방식대로 CSV를 먼저 로딩한 뒤 worker에 공유한다.
 
 Docker Desktop이 설치되고 실행 중인 컴퓨터에서 확인하는 명령이다.
 
@@ -99,8 +116,8 @@ http://localhost:8767/ 과 http://localhost:8767/healthz 를 확인한다.
 
 ## 나중에 Render에 배포할 때
 
-1. 기존 `feature/data-layer`에서 변경 내용을 검토하고 commit·push하면 PR #10에 추가된다.
-   새 브랜치나 새 PR을 만들 필요는 없다. 로컬의 통합 대기 상태도 해당 커밋으로 마무리된다.
+1. 기존 `feature/data-layer`에서 변경 내용을 검토한 뒤 commit·push한다.
+   해당 브랜치에서 main으로 향하는 열린 PR이 있으면 갱신되고, 없으면 리뷰용 PR을 연다.
 2. Render에서 New → Web Service → GitHub 저장소를 선택한다.
 3. 배포할 Branch를 지정한다. 팀에서 승인한 뒤 main을 사용하거나, 합치기 전 시험할 때는 이 변경이 올라간 브랜치를 선택한다.
 4. Language는 Docker, Dockerfile Path는 `./Dockerfile`로 설정한다.
@@ -114,10 +131,18 @@ http://localhost:8767/ 과 http://localhost:8767/healthz 를 확인한다.
 공식 안내: [Docker](https://render.com/docs/docker), [Web Service](https://render.com/docs/web-services),
 [환경변수](https://render.com/docs/configure-environment-variables), [Blueprint](https://render.com/docs/blueprint-spec).
 
+배포 환경에서 자동 갱신을 켜려면 Render의 환경변수에 `SEOUL_OPEN_API_KEY`를 추가한다.
+무료 웹 서비스는 유휴 상태에서 종료되고 갱신 사본이 사라질 수 있으며, 시작할 때 원본부터 다시 수집한다.
+재시작 뒤에도 사본을 보존해야 한다면 영구 디스크를 연결하고
+`SEOUL_POPULATION_CACHE_DIR`를 해당 디스크 내부 경로로 설정한다.
+[Render 무료 서비스 제한](https://render.com/docs/free) · [영구 디스크 안내](https://render.com/docs/disks)
+
 ## 검증을 재현하는 방법
 
-Python 3.12·Flask 3.1.2에서 Python 테스트 113개 모두 통과했다. 실제 원본 요청 29개 조합과
-합성 샘플 요청 16개 조합의 응답을 생성해, Node 테스트 33개가 통과했고 실제 HTTP 테스트 4개는 미완료다.
+Python 3.12·Flask 3.1.2에서 Python 테스트 119개가 통과했다. 새 갱신 테스트는 API 응답을 대체해
+중복 방지, 누락 날짜 재수집, 오류 시 사본 보존, 서버 재시작 없이 새 날짜가 조회되는지 확인했다.
+실제 원본 요청 29개 조합과 합성 샘플 요청 16개 조합으로 Node 테스트 37개가 통과했다.
+이 중 4개는 로컬 Flask 서버에 HTTP 요청을 보내 확인했다.
 종로구 2025년의 이동평균 120일·계절성 46일·Z-score 1일과 토요일 유입 +19.8% 설명을 유지한다.
 
 ```powershell
@@ -140,6 +165,5 @@ $env:FULL_CSV_BASE_URL = "http://127.0.0.1:8767"
 node --test tests/frontend/dashboard.test.mjs tests/frontend/sample-api.test.mjs tests/frontend/full-csv.test.mjs
 ```
 
-이번 도구 환경은 로컬 주소로의 HTTP 접속을 차단해 실제 HTTP 테스트 4개를 완료하지 못했다.
-Docker 실행 파일도 없어 이미지 빌드·컨테이너 실행은 미검증이다. 실제 브라우저와 Render 배포도 남아 있다.
-발표자는 발표에 쓸 컴퓨터에서 실행·조회·화면을 확인한 뒤 시연 버전을 정한다.
+서울시 공개 샘플 키로 요청 주소, 날짜 필터, JSON 필드를 확인했다.
+발급받은 키로 하루치 전체 26건을 받는 갱신, Docker 이미지 빌드, Render 배포는 배포 환경에서 확인한다.

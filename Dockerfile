@@ -14,6 +14,5 @@ COPY . .
 
 EXPOSE 8767
 
-# 전체 CSV를 시작 시 로딩하고 worker에 공유한다. 샘플은 로컬 별도 진입점으로 유지한다.
-# 0.0.0.0: 컨테이너 밖(브라우저)의 접속도 받음 / PORT가 없으면 8767 사용
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8767} --workers ${WEB_CONCURRENCY:-2} --preload 'dashboard_app:create_dashboard_app()'"]
+# 자동 갱신 모드에서는 한 worker가 갱신과 조회를 모두 맡으며, fork 전에 갱신 스레드를 시작하지 않는다.
+CMD ["sh", "-c", "if [ -n \"$SEOUL_OPEN_API_KEY\" ]; then set -- --workers 1 --threads 4; else set -- --workers \"${WEB_CONCURRENCY:-2}\" --preload; fi; exec gunicorn --bind \"0.0.0.0:${PORT:-8767}\" \"$@\" 'dashboard_app:create_dashboard_app()'"]

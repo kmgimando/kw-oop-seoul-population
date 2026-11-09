@@ -10,13 +10,33 @@ python -m pip install -r requirements-dev.txt
 python dashboard_app.py
 ```
 
-브라우저에서 http://127.0.0.1:8767/ 을 연다. 25개 자치구의 실제 생활인구 CSV를 사용하며,
-자료 범위는 2023-01-01~2026-09-13이다. 처음에는 최근 90일을 표시하고 기간을 바꿔 전체 자료를 조회할 수 있다.
+브라우저에서 http://127.0.0.1:8767/ 을 연다. 25개 자치구의 실제 생활인구 CSV를 사용한다.
+포함된 원본의 자료 범위는 2023-01-01~2026-09-13이다. 처음에는 최근 90일을 표시하고 기간을 바꿔 전체 자료를 조회할 수 있다.
 원본의 2024-02-29 누락은 채워 넣지 않는다. `/?source=mock`은 기존 가상 데이터 모드다.
 
 `python run_sample_dashboard.py`는 종로구·강남구의 합성 샘플 전용 실행 방법으로 유지한다.
 실제 CSV 경로는 `python dashboard_app.py --csv "파일 경로"` 또는 `POPULATION_CSV_PATH`로 지정할 수 있다.
 Docker와 Render 설정은 [전체 CSV 연결·배포 안내](docs/full-csv-deployment.md)를 참고한다.
+
+## 서울시 Open API 자동 갱신
+
+[서울 열린데이터광장](https://data.seoul.go.kr/together/guide/useGuide.do)의 일반 인증키를 발급받아
+프로젝트 폴더의 PowerShell에서 아래 명령을 실행한다. 첫 줄을 실행하면 키를 가린 상태로 입력할 수 있다.
+
+```powershell
+$env:SEOUL_OPEN_API_KEY = [System.Net.NetworkCredential]::new('', (Read-Host '서울시 Open API 인증키' -AsSecureString)).Password
+python dashboard_app.py
+```
+
+서버 시작 직후와 이후 매일 한국 시간 정오에 새 자료를 확인한다. 서울시는
+[250m 일별집계표 OA-23022](https://data.seoul.go.kr/dataList/OA-23022/S/1/datasetView.do)를 4일 전까지 제공한다.
+하루치 26개 지역이 모두 들어왔을 때만 갱신 CSV에 추가한다. 터미널에 갱신이 표시된 뒤 브라우저에서 새로고침하면
+조회 기간에 새 날짜가 나타난다. 인증키 설정 없이 실행하면 포함된 CSV로 시작한다.
+
+갱신 사본은 `data/.seoul-api-cache/`에 저장되고 Git에서 제외된다. 키는 환경변수로만 전달한다.
+공식 API는 HTTP 주소를 사용한다. 키가 포함된 요청 URL을 공유하거나 저장소에 올리지 않는다.
+실행 중 오류가 나면 마지막으로 읽은 자료를 계속 제공하고 다시 시도한다.
+동작과 배포 설정은 [갱신 및 배포 안내](docs/full-csv-deployment.md#서울시-open-api-자동-갱신)를 참고한다.
 
 ## 파일
 

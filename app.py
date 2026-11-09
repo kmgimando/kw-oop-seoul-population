@@ -83,6 +83,7 @@ def parse_request(args, known_districts):
 def create_app(repository, explainer=None):
     """repository: get_records(code, start, end), list_districts()를 가진 객체 (김민규님 담당)"""
     app = Flask(__name__)
+    app.config["POPULATION_REPOSITORY"] = repository
     explainer = explainer or AnomalyExplainer()
 
     @app.errorhandler(ApiError)
@@ -104,16 +105,18 @@ def create_app(repository, explainer=None):
 
     @app.get("/api/analysis")
     def analysis():
+        # 요청마다 한 버전의 저장소를 잡아 조회 중 새 자료가 반영돼도 혼합되지 않는다.
+        current_repository = app.config["POPULATION_REPOSITORY"]
         # 이전 main의 dict와 데이터 계층 수정본의 tuple 목록을 모두 지원한다.
         districts = {item["district_code"] if isinstance(item, dict) else item[0]
-                     for item in repository.list_districts()}
+                     for item in current_repository.list_districts()}
         code, start, end, settings, detectors = parse_request(request.args, districts)
 
         # 기준 계산에 필요한 '조회 시작 전' 이력까지 넉넉히 가져온다
         longest = max(max(s["window"] for s in settings.values()),
                       explainer.comparison_window)
         history_start = date.fromordinal(max(1, start.toordinal() - longest))
-        records = repository.get_records(code, history_start, end)
+        records = current_repository.get_records(code, history_start, end)
 
         results_by_method, details_by_method = {}, {}
         for name, detector in detectors.items():
