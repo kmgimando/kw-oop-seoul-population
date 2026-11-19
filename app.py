@@ -8,6 +8,7 @@ import json
 from datetime import date
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
 from anomaly_explainer import AnomalyExplainer
 from detectors import MovingAverageDetector, ZScoreDetector
@@ -93,6 +94,14 @@ def create_app(repository, explainer=None):
     @app.errorhandler(404)
     def handle_not_found(_):
         return jsonify(ApiError(404, "NOT_FOUND", "존재하지 않는 경로입니다.").to_dict()), 404
+
+    @app.errorhandler(HTTPException)
+    def handle_http_error(error):
+        response = error.get_response()
+        response.set_data(json.dumps(ApiError(error.code, "HTTP_ERROR", error.description).to_dict(),
+                                     ensure_ascii=False))
+        response.content_type = "application/json"
+        return response
 
     @app.errorhandler(Exception)
     def handle_unexpected(error):          # 스택 추적은 사용자에게 보내지 않는다

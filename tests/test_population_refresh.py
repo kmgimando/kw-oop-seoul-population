@@ -135,8 +135,46 @@ class PopulationRefreshTests(unittest.TestCase):
         self.assertEqual(self.seed.file_path.read_bytes(), self.original)
         self.assertEqual(list(self.cache_dir.glob("*.tmp")), [])
 
+    def test_corrupt_cache_is_rebuilt_after_a_failed_download(self):
+        self.cache_dir.mkdir()
+        self.refresh.cache.write_bytes(b"broken CSV")
+        self.api.fetch_day.side_effect = OSError("네트워크 실패")
+        with self.assertRaises(OSError):
+            self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        self.assertEqual(self.refresh.cache.read_bytes(), b"broken CSV")
+
+        self.api.fetch_day.side_effect = daily_rows
+        repository, added, skipped = self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        self.assertEqual((added, skipped), (1, []))
+        self.assertEqual(repository.get_data_quality()["record_count"], 52)
+        self.assertEqual(self.seed.file_path.read_bytes(), self.original)
+
+    def test_valid_csv_with_a_partial_day_is_rebuilt_without_duplicates(self):
+        self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        lines = self.refresh.cache.read_bytes().splitlines(keepends=True)
+        self.refresh.cache.write_bytes(b"".join(lines[:-1]))
+        # CSV 값 검증을 통과하는 잘린 파일도 날짜별 지역 수가 부족하면 복구해야 한다.
+        with self.assertRaises(ValueError):
+            self.refresh.load_latest()
+        repository, added, skipped = self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        self.assertEqual((added, skipped), (1, []))
+        self.assertEqual(repository.get_data_quality()["record_count"], 52)
+        self.assertTrue(all(len(repository.get_records(code)) == 2 for code in REGIONS))
+
+    def test_cached_original_values_must_match_the_pinned_source(self):
+        self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        original = self.refresh.cache.read_bytes()
+        self.refresh.cache.write_bytes(original.replace(b"120.5", b"999.5", 1))
+        with self.assertRaises(ValueError):
+            self.refresh.load_latest()
+        repository, _, _ = self.refresh.refresh_once(NEXT_DAY + timedelta(days=4))
+        self.assertEqual(repository.get_records("11000")[0].total_population, 120.5)
+        self.assertEqual(self.seed.file_path.read_bytes(), self.original)
+
     @patch("dashboard_app.Thread")
     def test_dashboard_publishes_new_rows_and_dates_without_a_restart(self, thread):
+        self.cache_dir.mkdir()
+        self.refresh.cache.write_bytes(b"broken CSV")
         with patch.dict(os.environ, {"SEOUL_OPEN_API_KEY": "test-key",
                                      "SEOUL_POPULATION_CACHE_DIR": str(self.cache_dir)}):
             app = create_dashboard_app(self.seed.file_path)

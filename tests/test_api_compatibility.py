@@ -100,6 +100,12 @@ class ApiCompatibilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(all(block["results"] == [] for block in response.get_json()["methods"]))
 
+    def test_unsupported_request_method_returns_http_error_as_json(self):
+        response = self.client.post("/api/analysis")
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.get_json()["error"]["code"], "HTTP_ERROR")
+        self.assertIn("GET", response.headers["Allow"])
+
 
 if __name__ == "__main__":
     unittest.main()

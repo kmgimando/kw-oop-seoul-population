@@ -4,6 +4,7 @@ import csv
 import hashlib
 import os
 import shutil
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -26,12 +27,18 @@ class PopulationRefresh:
         self.seed_start, self.seed_end = seed.get_date_range()
         self.seed_count = seed.get_data_quality()["record_count"]
         # 다른 CSV를 지정하거나 팀 원본을 교체하면 이전 사본을 섞지 않는다.
-        digest = hashlib.sha256(seed.file_path.read_bytes()).hexdigest()
-        self.cache = cache_dir / f"population-{digest}.csv"
+        seed_bytes = seed.file_path.read_bytes()
+        self.seed_digest = hashlib.sha256(seed_bytes).hexdigest()
+        self.seed_size = len(seed_bytes)
+        self.cache = cache_dir / f"population-{self.seed_digest}.csv"
 
     def load_latest(self) -> CsvPopulationRepository:
         repository = CsvPopulationRepository(self.cache, require_indicators=True)
         try:
+            with self.cache.open("rb") as cached:
+                digest = hashlib.sha256(cached.read(self.seed_size)).hexdigest()
+            if digest != self.seed_digest:
+                raise ValueError("갱신 CSV에 보관된 원본이 팀 원본과 다릅니다.")
             count = repository.load()
         except FileNotFoundError:
             return self.seed
@@ -39,6 +46,11 @@ class PopulationRefresh:
         if (start != self.seed_start or end < self.seed_end or count < self.seed_count
                 or dict(repository.list_districts(include_seoul_total=True)) != self.regions):
             raise ValueError("갱신 CSV가 원본의 기간·자치구와 일치하지 않습니다.")
+        added_dates = Counter(record.date for record in repository.get_all_records()
+                              if record.date > self.seed_end)
+        if (count != self.seed_count + sum(added_dates.values())
+                or any(total != len(self.regions) for total in added_dates.values())):
+            raise ValueError("갱신 CSV에는 새 날짜별로 26개 지역이 모두 있어야 합니다.")
         return repository
 
     def refresh_once(self, today=None):
@@ -56,7 +68,11 @@ class PopulationRefresh:
                 import fcntl
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-            current = self.load_latest()
+            try:
+                current = self.load_latest()
+            except ValueError:
+                # 손상된 사본은 새 수집·검증이 모두 성공한 뒤에만 교체한다.
+                current = self.seed
             _, last = current.get_date_range()
             quality = current.get_data_quality()
             gaps = {datetime.fromisoformat(day).date()
