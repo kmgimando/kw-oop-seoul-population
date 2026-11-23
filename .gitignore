@@ -217,6 +217,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local population sources; commit only the explicitly synthetic sample.
+# Keep the agreed public-data snapshot and the synthetic sample; ignore other CSV copies.
 /data/*.csv
 !/data/sample_population.csv
+!/data/population.csv
+/data/.seoul-api-cache/

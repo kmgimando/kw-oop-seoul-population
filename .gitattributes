@@ -1,0 +1,2 @@
+# Keep the agreed CP949 CSV byte-for-byte identical on Windows and Linux.
+data/population.csv -text

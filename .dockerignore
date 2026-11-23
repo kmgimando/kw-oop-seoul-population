@@ -5,9 +5,11 @@ __pycache__
 .vscode
 .idea
 
-# 원본 CSV는 이미지에 넣지 않는다 (합성 샘플만 포함)
+# 팀에서 합의한 원본 스냅샷과 합성 샘플만 이미지에 포함한다.
 data/*.csv
 !data/sample_population.csv
+!data/population.csv
+data/.seoul-api-cache/
 
 tests
 *.md

@@ -1,17 +1,44 @@
-// Runtime coverage comes from the loaded sample Repository, not an assumed
-// 25-district production data source. Static previews continue to default Mock.
+// Supported regions and dates come from the loaded CSV Repository.
+// Static previews continue to default Mock.
+function profileDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return false;
+  const day = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}
 export function parseProfile(text) {
   try {
     const profile = JSON.parse(text);
-    if (profile.profile_version !== 1 || profile.source?.kind !== "synthetic_sample" ||
+    if (profile.profile_version !== 1 || !["synthetic_sample", "seoul_population"].includes(profile.source?.kind) ||
         typeof profile.source.label !== "string" || !Array.isArray(profile.districts) ||
         !profile.districts.length || !profile.districts.every(item => Array.isArray(item) && item.length === 2 &&
           typeof item[0] === "string" && /^\d{5}$/.test(item[0]) && typeof item[1] === "string") ||
         new Set(profile.districts.map(item => item[0])).size !== profile.districts.length ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(profile.start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(profile.end_date) ||
+        !profileDate(profile.start_date) || !profileDate(profile.end_date) ||
         profile.start_date > profile.end_date) return null;
+    const first = profile.default_start_date ?? profile.start_date;
+    const last = profile.default_end_date ?? profile.end_date;
+    if (!profileDate(first) || !profileDate(last) ||
+        first < profile.start_date || last > profile.end_date || first > last) return null;
+    if (profile.missing_dates !== undefined && (!Array.isArray(profile.missing_dates) ||
+        !profile.missing_dates.every(profileDate))) return null;
     return profile;
   } catch { return null; }
+}
+export function sourcePresentation(profile) {
+  const sample = profile.source.kind === "synthetic_sample";
+  const range = `${profile.start_date} ~ ${profile.end_date}`;
+  const missing = profile.missing_dates?.length
+    ? ` 원자료 누락: ${profile.missing_dates.join(", ")}.` : "";
+  const refresh = profile.source.auto_refresh === true ? " 서울시 Open API 자동 갱신 사용 중." : "";
+  return {
+    label: sample ? "SAMPLE API" : "CSV API",
+    title: sample ? "합성 샘플 CSV · Flask API"
+      : profile.source.auto_refresh === true ? "서울 생활인구 · CSV + Open API" : "서울 생활인구 · 원본 CSV",
+    description: sample
+      ? `${profile.districts.map(item => item[1]).join("·")} / ${range}. 실제 서울시 분석 결과가 아닙니다.`
+      : `${profile.districts.length}개 자치구 / ${range}. 처음에는 최근 90일을 표시합니다.${missing}${refresh}`,
+    empty: `조회된 기록이 없습니다. ${profile.source.label} 범위는 ${range}입니다.`,
+  };
 }
 export function dataMode(search = "", profile = null) {
   const source = new URLSearchParams(search).get("source");

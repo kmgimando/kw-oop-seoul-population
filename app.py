@@ -5,9 +5,10 @@
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
 from anomaly_explainer import AnomalyExplainer
 from detectors import MovingAverageDetector, ZScoreDetector
@@ -52,6 +53,8 @@ def parse_request(args, known_districts):
     try:
         start = date.fromisoformat(args["start_date"])
         end = date.fromisoformat(args["end_date"])
+        if start.isoformat() != args["start_date"] or end.isoformat() != args["end_date"]:
+            raise ValueError("날짜 형식이 다릅니다.")
     except ValueError:
         bad("start_date", "날짜는 YYYY-MM-DD 형식이어야 합니다.")
     if start > end:
@@ -81,6 +84,7 @@ def parse_request(args, known_districts):
 def create_app(repository, explainer=None):
     """repository: get_records(code, start, end), list_districts()를 가진 객체 (김민규님 담당)"""
     app = Flask(__name__)
+    app.config["POPULATION_REPOSITORY"] = repository
     explainer = explainer or AnomalyExplainer()
 
     @app.errorhandler(ApiError)
@@ -90,6 +94,14 @@ def create_app(repository, explainer=None):
     @app.errorhandler(404)
     def handle_not_found(_):
         return jsonify(ApiError(404, "NOT_FOUND", "존재하지 않는 경로입니다.").to_dict()), 404
+
+    @app.errorhandler(HTTPException)
+    def handle_http_error(error):
+        response = error.get_response()
+        response.set_data(json.dumps(ApiError(error.code, "HTTP_ERROR", error.description).to_dict(),
+                                     ensure_ascii=False))
+        response.content_type = "application/json"
+        return response
 
     @app.errorhandler(Exception)
     def handle_unexpected(error):          # 스택 추적은 사용자에게 보내지 않는다
@@ -102,15 +114,18 @@ def create_app(repository, explainer=None):
 
     @app.get("/api/analysis")
     def analysis():
-        # The actual Repository returns dicts; existing test doubles use tuples.
+        # 요청마다 한 버전의 저장소를 잡아 조회 중 새 자료가 반영돼도 혼합되지 않는다.
+        current_repository = app.config["POPULATION_REPOSITORY"]
+        # 이전 main의 dict와 데이터 계층 수정본의 tuple 목록을 모두 지원한다.
         districts = {item["district_code"] if isinstance(item, dict) else item[0]
-                     for item in repository.list_districts()}
+                     for item in current_repository.list_districts()}
         code, start, end, settings, detectors = parse_request(request.args, districts)
 
         # 기준 계산에 필요한 '조회 시작 전' 이력까지 넉넉히 가져온다
         longest = max(max(s["window"] for s in settings.values()),
                       explainer.comparison_window)
-        records = repository.get_records(code, start - timedelta(days=longest), end)
+        history_start = date.fromordinal(max(1, start.toordinal() - longest))
+        records = current_repository.get_records(code, history_start, end)
 
         results_by_method, details_by_method = {}, {}
         for name, detector in detectors.items():

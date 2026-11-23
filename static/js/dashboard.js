@@ -1,4 +1,4 @@
-import { CONFIG, districtOptions, METHODS } from "./config.js";
+import { CONFIG, districtOptions, sourcePresentation, METHODS } from "./config.js";
 import { fetchAnalysis } from "./api.js";
 import { LatestRequest, validateQuery, summarize, number, percent, settingLabel, stateOf, STATE_LABELS, STATUS_LABELS } from "./model.js";
 import { renderCharts, highlightDate } from "./charts.js";
@@ -111,7 +111,7 @@ function renderData(data) {
   if (!stats.total) {
     feedback("empty", CONFIG.mode === "mock"
       ? "조회된 데이터가 없습니다. 기간을 확인하거나 다른 시나리오로 다시 실행하세요. Mock 데이터 범위는 2024-01-01 ~ 2024-03-30입니다."
-      : `조회된 기록이 없습니다. 합성 샘플 범위는 ${CONFIG.profile.start_date} ~ ${CONFIG.profile.end_date}입니다.`);
+      : sourcePresentation(CONFIG.profile).empty);
     return;
   }
   $("results").hidden = false;
@@ -151,13 +151,13 @@ $("query-form").addEventListener("submit", runAnalysis);
 $("status-filter").addEventListener("change", renderRows);
 if (CONFIG.mode === "api") {
   $("scenario").closest("details").hidden = true;
-  $("source-label").textContent = "SAMPLE API";
   $("coverage-label").textContent = `${districts.length}개 자치구 · 3가지 탐지 방법`;
   if (CONFIG.profile) {
-    $("start-date").value = CONFIG.profile.start_date;
-    $("end-date").value = CONFIG.profile.end_date;
-    $("demo-banner").replaceChildren(create("strong", "합성 샘플 CSV · Flask API"),
-      create("span", `${districts.map(item => item[1]).join("·")} / ${CONFIG.profile.start_date} ~ ${CONFIG.profile.end_date}. 실제 서울시 분석 결과가 아닙니다.`));
+    const source = sourcePresentation(CONFIG.profile);
+    $("source-label").textContent = source.label;
+    $("start-date").value = CONFIG.profile.default_start_date ?? CONFIG.profile.start_date;
+    $("end-date").value = CONFIG.profile.default_end_date ?? CONFIG.profile.end_date;
+    $("demo-banner").replaceChildren(create("strong", source.title), create("span", source.description));
   }
 }
 updateMethodFields();
@@ -165,5 +165,5 @@ if (CONFIG.mode === "api" && !CONFIG.profile) {
   $("run-button").disabled = true;
   $("demo-banner").replaceChildren(create("strong", "API 지원 정보 없음"),
     create("span", "데이터 출처와 지원 지역을 확인할 수 없어 조회를 중단했습니다."));
-  feedback("error", "API 데이터의 지원 정보를 받지 못했습니다. 샘플 대시보드 실행 방법을 확인하세요.");
+  feedback("error", "API 데이터의 지원 정보를 받지 못했습니다. 대시보드 서버 실행 방법을 확인하세요.");
 } else runAnalysis();
